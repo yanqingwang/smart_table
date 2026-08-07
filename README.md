@@ -209,7 +209,7 @@
 | WebSocket | Flask-SocketIO             | 5.3.6                 | 实时通信          |
 | 异步支持      | eventlet                   | 0.36.1                | 异步处理          |
 | 数据序列化     | marshmallow                | 3.20.1                | 数据验证序列化       |
-| 导入导出      | pandas, openpyxl, xlrd     | 2.1.4 / 3.1.2 / 2.0.1 | 数据处理          |
+| 导入导出      | polars, fastexcel, xlsxwriter, openpyxl, xlrd | 1.43 / 0.13 / 3.x | 数据处理（已用 polars 替代 pandas） |
 | 图片处理      | Pillow                     | 10.4.0                | 图片缩略图         |
 | 对象存储      | MinIO (可选)                 | -                     | 文件对象存储        |
 | 加密        | cryptography               | 42.0.5                | 加密算法          |
@@ -310,7 +310,7 @@ pnpm install
 pnpm run dev
 ```
 
-访问 <http://localhost:5173>
+访问 <http://localhost:3000>
 
 #### 构建生产版本
 
@@ -379,12 +379,12 @@ venv\Scripts\activate
 # Linux/macOS:
 source venv/bin/activate
 
-# 安装依赖
-pip install -r requirements.txt
+# 安装依赖（本地最简清单：已去除 pandas / psycopg2，改用 polars，无需 Redis）
+pip install -r requirements-local.txt
 
 # 复制环境变量配置文件
 cp .env.example .env
-# 默认使用 SQLite，无需修改 DATABASE_URL
+# 默认使用 SQLite + SimpleCache，无需修改 DATABASE_URL
 
 # 初始化数据库
 flask db upgrade
@@ -398,6 +398,16 @@ python run.py
 # 启用实时协作功能
 python run.py --enable-realtime
 > 或者通过修改 .env 的 `ENABLE_REALTIME=True` 来配置协同编辑功能
+
+```
+
+> **本地启动提示**
+>
+> - ⚠️ **必须使用虚拟环境的 Python**：`venv` 已随仓库提供。请先 `source venv/bin/activate`，或显式用 `./venv/bin/python run.py`；直接用系统 `python` 会因缺少依赖而报错。
+> - 🔓 **Redis 不再是硬依赖**：缓存默认 `SimpleCache`，仅当 `CACHE_TYPE=RedisCache` 时才连接 Redis。
+> - 🔑 **登录验证码可关闭**：本地 `.env` 中 `LOGIN_CAPTCHA_ENABLED=false` 可免验证码登录。
+> - 🔀 **访问地址**：浏览器打开 **http://localhost:3000**（前端）；后端 API 基址为 **http://localhost:5000/api**。开发模式下访问后端根路径 `http://localhost:5000/` 会自动 302 跳转到前端，不再返回 404。
+> - 📘 更完整的本地部署说明见 [doc/LOCAL_DEPLOYMENT.md](doc/LOCAL_DEPLOYMENT.md)。
 
 ```
 
