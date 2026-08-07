@@ -1,0 +1,34 @@
+# SmartTable 本地启动依赖（最简配置，适配 Python 3.14）
+# - 移除 psycopg2-binary（本地使用 SQLite，无需 PostgreSQL 驱动）
+# - 移除 pandas，改用 polars 做 Excel 导入导出（更高效）
+# - 缓存默认 SimpleCache，无需 Redis
+# - 各依赖取兼容的最新版本
+
+Flask
+Flask-SQLAlchemy
+SQLAlchemy>=2.0,<2.1
+Flask-Migrate
+alembic
+Flask-JWT-Extended
+Flask-Bcrypt
+Flask-WTF
+bcrypt
+Flask-CORS
+Flask-Caching
+redis
+Flask-SocketIO
+APScheduler
+marshmallow==3.26.1
+marshmallow-sqlalchemy==0.29.0
+python-dateutil
+openpyxl
+xlrd
+fastexcel
+xlsxwriter
+Pillow
+python-dotenv
+cryptography
+flasgger
+requests
+WeasyPrint
+polars

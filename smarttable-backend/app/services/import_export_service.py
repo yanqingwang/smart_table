@@ -7,16 +7,17 @@ import io
 import json
 import uuid
 import re
+import math
 from typing import List, Optional, Dict, Any, Tuple, BinaryIO
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 try:
-    import pandas as pd
-    HAS_PANDAS = True
+    import polars as pl
+    HAS_POLARS = True
 except ImportError:
-    pd = None
-    HAS_PANDAS = False
+    pl = None
+    HAS_POLARS = False
 
 from app.extensions import db
 from app.models.table import Table
@@ -130,15 +131,12 @@ class ImportExportService:
         返回:
             导入结果或预览数据
         """
-        try:
-            if not HAS_PANDAS:
-                raise ImportError('请安装 pandas: pip install pandas openpyxl')
-        except ImportError:
-            raise ImportError('请安装 pandas: pip install pandas openpyxl')
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
         
         # 读取 Excel 文件
         try:
-            df = pd.read_excel(file)
+            df = pl.read_excel(file.read())
         except Exception as e:
             raise ValueError(f'无法读取 Excel 文件: {str(e)}')
         
@@ -158,7 +156,7 @@ class ImportExportService:
         records_data = []
         errors = []
         
-        for idx, row in df.iterrows():
+        for idx, row in enumerate(df.iter_rows(named=True)):
             row_num = idx + 2  # Excel 行号（从 2 开始，1 是表头）
             record_values = {}
             
@@ -190,7 +188,7 @@ class ImportExportService:
             records_data.append({
                 'row': row_num,
                 'values': record_values,
-                'source_data': row.to_dict()
+                'source_data': dict(row)
             })
         
         # 仅预览模式
@@ -322,25 +320,65 @@ class ImportExportService:
         返回:
             导入结果或预览数据
         """
-        try:
-            if not HAS_PANDAS:
-                raise ImportError('请安装 pandas: pip install pandas')
-        except ImportError:
-            raise ImportError('请安装 pandas: pip install pandas')
+    @classmethod
+    def _read_csv_df(cls, file: BinaryIO, encoding: str = 'utf-8',
+                     delimiter: str = ',') -> 'pl.DataFrame':
+        """
+        使用 polars 读取 CSV，自动回退常见编码（utf-8 / gbk）
+        """
+        data = file.read()
+        text = None
+        for enc in (encoding, 'gbk', 'utf-8'):
+            try:
+                text = data.decode(enc)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        if text is None:
+            text = data.decode('utf-8', errors='replace')
+        return pl.read_csv(
+            io.BytesIO(text.encode('utf-8')),
+            separator=delimiter,
+            infer_schema_length=10000,
+        )
+
+    @classmethod
+    def import_from_csv(cls, file: BinaryIO, table_id: str,
+                       field_mapping: Dict[str, str],
+                       user_id: str,
+                       preview_only: bool = False,
+                       encoding: str = 'utf-8',
+                       delimiter: str = ',') -> Dict[str, Any]:
+        """
+        从 CSV 文件导入数据
         
-        # 读取 CSV 文件
+        参数:
+            file: CSV 文件对象
+            table_id: 目标表格 ID
+            field_mapping: 字段映射 {csv列名: field_id}
+            user_id: 操作用户 ID
+            preview_only: 是否仅预览
+            encoding: 文件编码
+            delimiter: 分隔符
+            
+        返回:
+            导入结果或预览数据
+        """
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
+        
+        # 读取 CSV 文件（自动回退编码）
         try:
-            df = pd.read_csv(file, encoding=encoding, delimiter=delimiter)
-        except UnicodeDecodeError:
-            # 尝试其他编码
-            file.seek(0)
-            df = pd.read_csv(file, encoding='gbk', delimiter=delimiter)
+            df = cls._read_csv_df(file, encoding=encoding, delimiter=delimiter)
         except Exception as e:
             raise ValueError(f'无法读取 CSV 文件: {str(e)}')
         
-        # 复用 Excel 导入逻辑
+        # 复用 Excel 导入逻辑（转换为 Excel 字节流）
+        output = io.BytesIO()
+        df.write_excel(output, worksheet='Sheet1')
+        output.seek(0)
         return cls.import_from_excel(
-            io.BytesIO(df.to_excel(index=False)),
+            output,
             table_id,
             field_mapping,
             user_id,
@@ -512,8 +550,8 @@ class ImportExportService:
         返回:
             (文件内容字节, 文件名)
         """
-        if not HAS_PANDAS:
-            raise ImportError('请安装 pandas: pip install pandas openpyxl')
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
         
         # 获取表格和字段
         table = Table.query.get(table_id)
@@ -547,12 +585,11 @@ class ImportExportService:
             data.append(row)
         
         # 创建 DataFrame
-        df = pd.DataFrame(data)
+        df = pl.DataFrame(data)
         
         # 导出到字节流
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name=table.name[:31])  # Excel 工作表名最多 31 字符
+        df.write_excel(output, worksheet=table.name[:31])  # Excel 工作表名最多 31 字符
         output.seek(0)
         
         filename = f"{table.name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -575,8 +612,8 @@ class ImportExportService:
         返回:
             (文件内容字节, 文件名)
         """
-        if not HAS_PANDAS:
-            raise ImportError('请安装 pandas: pip install pandas')
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
         
         # 复用 Excel 的数据准备逻辑
         table = Table.query.get(table_id)
@@ -604,16 +641,17 @@ class ImportExportService:
                 row[field.name] = cls._format_export_value(value, field)
             data.append(row)
         
-        df = pd.DataFrame(data)
+        df = pl.DataFrame(data)
         
-        # 导出到字节流
-        output = io.BytesIO()
-        df.to_csv(output, index=False, encoding=encoding)
-        output.seek(0)
+        # 导出到字节流（保留 utf-8-sig 以便 Excel 正确识别中文）
+        csv_text = df.write_csv(include_header=True)
+        csv_bytes = csv_text.encode('utf-8')
+        if encoding.replace('-', '').lower() == 'utf8sig':
+            csv_bytes = b'\xef\xbb\xbf' + csv_bytes
         
         filename = f"{table.name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
         
-        return output.getvalue(), filename
+        return csv_bytes, filename
     
     @classmethod
     def export_to_json(cls, table_id: str, record_ids: Optional[List[str]] = None,
@@ -681,7 +719,8 @@ class ImportExportService:
         if value is None:
             return None
         
-        if HAS_PANDAS and pd is not None and pd.isna(value):
+        # polars 读取后缺失值通常为 None；兼容浮点 NaN
+        if isinstance(value, float) and math.isnan(value):
             return None
         
         field_type = FieldType(field.type)
@@ -972,12 +1011,12 @@ class ImportExportService:
         返回:
             文件结构信息和字段建议
         """
-        if not HAS_PANDAS:
-            raise ImportError('请安装 pandas: pip install pandas openpyxl')
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
         
         # 读取Excel文件
         try:
-            df = pd.read_excel(file)
+            df = pl.read_excel(file.read())
         except Exception as e:
             raise ValueError(f'无法读取Excel文件: {str(e)}')
         
@@ -987,7 +1026,7 @@ class ImportExportService:
         # 分析列
         columns = []
         for col in df.columns:
-            sample_values = df[col].dropna().head(5).tolist()
+            sample_values = df[col].drop_nulls().head(5).to_list()
             detected = cls.detect_field_type(sample_values, str(col))
             
             columns.append({
@@ -1018,25 +1057,21 @@ class ImportExportService:
         返回:
             文件结构信息（列名、示例数据等）
         """
-        if not HAS_PANDAS:
-            raise ImportError('请安装 pandas: pip install pandas openpyxl')
+        if not HAS_POLARS:
+            raise ImportError('请安装 polars: pip install polars fastexcel xlsxwriter')
         
         # 读取文件
         if file_type == 'excel':
-            df = pd.read_excel(file)
+            df = pl.read_excel(file.read())
         elif file_type == 'csv':
-            try:
-                df = pd.read_csv(file)
-            except UnicodeDecodeError:
-                file.seek(0)
-                df = pd.read_csv(file, encoding='gbk')
+            df = cls._read_csv_df(file)
         else:
             raise ValueError('不支持的文件类型')
         
         # 分析列
         columns = []
         for col in df.columns:
-            sample_values = df[col].dropna().head(5).tolist()
+            sample_values = df[col].drop_nulls().head(5).to_list()
             columns.append({
                 'name': str(col),
                 'type': str(df[col].dtype),
@@ -1047,5 +1082,5 @@ class ImportExportService:
             'total_rows': len(df),
             'total_columns': len(df.columns),
             'columns': columns,
-            'sample_rows': df.head(5).to_dict('records')
+            'sample_rows': df.head(5).to_dicts()
         }

@@ -30,7 +30,7 @@ class EmailSenderService:
 
         初始化 SMTP 连接配置，但不立即建立连接
         """
-        self._server: Optional[stplib.SMTP] = None
+        self._server: Optional[smtplib.SMTP] = None
         self._config: Optional[Dict[str, Any]] = None
         self._sender_config: Optional[Dict[str, str]] = None
         self._is_connected = False
