@@ -109,7 +109,28 @@ pnpm run dev
 
 ---
 
-## 5. 一键本地启动（速查）
+## 5. 一键本地启动
+
+### 方式一：使用启动脚本（推荐）
+
+仓库根目录提供了 `start-local.sh`，一条命令同时拉起后端与前端的开发服务器，并在退出时自动清理两个进程：
+
+```bash
+cd smart_table
+./start-local.sh
+```
+
+脚本会：
+
+1. 检查 `smarttable-backend/venv` 是否存在（缺失会提示如何创建并安装 `requirements-local.txt`）；
+2. 后台启动后端（`venv/bin/python run.py`，日志写入 `smarttable-backend/logs/backend.log`）；
+3. 检查 `pnpm`，首次运行自动执行 `pnpm install`；
+4. 启动前端 `pnpm run dev`（`:3000`）；
+5. 按 `Ctrl+C` 时通过 `trap` 同时结束后端与前端进程。
+
+> 启动后浏览器打开 **http://localhost:3000** 即可。后端 API 基址为 **http://localhost:5000/api**。
+
+### 方式二：手动分开启动
 
 开两个终端：
 
@@ -122,6 +143,23 @@ cd smart-table && pnpm run dev
 ```
 
 浏览器打开 `http://localhost:3000`，使用默认账号登录即可。
+
+### 停止服务
+
+- 使用 `start-local.sh`：直接按 `Ctrl+C`，脚本会自动结束后端与前端进程。
+- 手动启动：分别在各终端 `Ctrl+C`；若后端以 `./venv/bin/python run.py &` 方式后台运行，可用 `pkill -f "venv/bin/python run.py"` 与 `pkill -f vite` 结束。
+
+### 启动验证（实测）
+
+启动成功后各端点预期返回：
+
+| 请求                              | 预期状态 | 说明                       |
+| ------------------------------- | ---- | ------------------------ |
+| `GET http://localhost:3000/`    | 200  | 前端页面（Vite dev server）     |
+| `GET http://localhost:5000/api/health` | 200  | 后端健康检查                   |
+| `GET http://localhost:5000/`    | 302  | 开发模式自动跳转到前端 `:3000`     |
+
+> 注：Vite 配置了 `open: true`，启动时会尝试自动打开系统默认浏览器；在纯服务器/无图形界面环境下会打印一条无害的警告，不影响服务运行。
 
 ---
 

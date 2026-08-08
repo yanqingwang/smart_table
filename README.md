@@ -403,6 +403,7 @@ python run.py --enable-realtime
 
 > **本地启动提示**
 >
+> - 💡 **最简启动**：仓库根目录执行 `./start-local.sh` 一条命令同时拉起前后端，按 `Ctrl+C` 一起退出（详见 [doc/LOCAL_DEPLOYMENT.md](doc/LOCAL_DEPLOYMENT.md)）。
 > - ⚠️ **必须使用虚拟环境的 Python**：`venv` 已随仓库提供。请先 `source venv/bin/activate`，或显式用 `./venv/bin/python run.py`；直接用系统 `python` 会因缺少依赖而报错。
 > - 🔓 **Redis 不再是硬依赖**：缓存默认 `SimpleCache`，仅当 `CACHE_TYPE=RedisCache` 时才连接 Redis。
 > - 🔑 **登录验证码可关闭**：本地 `.env` 中 `LOGIN_CAPTCHA_ENABLED=false` 可免验证码登录。
