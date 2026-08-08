@@ -10,11 +10,11 @@ from typing import Dict, Optional
 from flask import Blueprint, request, g, send_file, current_app
 
 try:
-    import pandas as pd
-    HAS_PANDAS = True
+    import polars as pl
+    HAS_POLARS = True
 except ImportError:
-    pd = None
-    HAS_PANDAS = False
+    pl = None
+    HAS_POLARS = False
 
 from app.services.import_export_service import ImportExportService
 from app.services.base_service import BaseService
@@ -809,13 +809,13 @@ def create_table_from_excel() -> tuple:
     if not temp_file_path or not os.path.exists(temp_file_path):
         return error_response('文件已过期，请重新上传', code=400)
     
-    # 检查 pandas 是否可用
-    if not HAS_PANDAS or pd is None:
-        return error_response('请安装 pandas: pip install pandas openpyxl', code=500)
-    
+    # 检查 polars 是否可用
+    if not HAS_POLARS or pl is None:
+        return error_response('请安装 polars: pip install polars fastexcel xlsxwriter', code=500)
+
     try:
         # 读取Excel文件
-        df = pd.read_excel(temp_file_path)
+        df = pl.read_excel(temp_file_path)
         
         # 创建数据表（不自动创建默认字段，导入逻辑会自行创建字段）
         table = TableService.create_table(
@@ -875,7 +875,7 @@ def create_table_from_excel() -> tuple:
                 # 从数据中推断选项
                 if source_column and source_column in df.columns:
                     # 获取该列的所有非空值
-                    column_values = df[source_column].dropna()
+                    column_values = df[source_column].drop_nulls()
                     
                     # 收集所有选项值
                     all_options = []

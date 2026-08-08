@@ -130,7 +130,7 @@ def register() -> tuple:
                 f"注册验证码验证失败 - IP: {client_ip}, Email: {email}, Reason: {error_msg}"
             )
             return error_response(f'验证码错误: {error_msg}', code=403, error='captcha_invalid')
-    else:
+    elif current_app.config.get('LOGIN_CAPTCHA_ENABLED', True):
         # 未提供验证码
         logger.warning(f"注册尝试未提供验证码 - IP: {client_ip}, Email: {email}")
         return error_response('请输入验证码', code=403, error='captcha_required')
@@ -231,7 +231,7 @@ def login() -> tuple:
             )
             record_login_attempt(success=False)
             return error_response(f'验证码错误: {error_msg}', code=403, error='captcha_invalid')
-    else:
+    elif current_app.config.get('LOGIN_CAPTCHA_ENABLED', True):
         # 未提供验证码
         logger.warning(f"登录尝试未提供验证码 - IP: {client_ip}, Email: {email}")
         record_login_attempt(success=False)
@@ -930,10 +930,10 @@ def forgot_password() -> tuple:
     # 验证验证码
     client_ip = request.remote_addr or 'unknown'
     captcha_token = f"auth:forgot_password:{client_ip}"
-    is_valid, error_msg = CaptchaService.verify_captcha(captcha_token, captcha)
-
-    if not is_valid:
-        return error_response(error_msg, code=400)
+    if current_app.config.get('LOGIN_CAPTCHA_ENABLED', True):
+        is_valid, error_msg = CaptchaService.verify_captcha(captcha_token, captcha)
+        if not is_valid:
+            return error_response(error_msg, code=400)
 
     # 查找用户（不泄露用户是否存在）
     user = User.query.filter_by(email=email).first()

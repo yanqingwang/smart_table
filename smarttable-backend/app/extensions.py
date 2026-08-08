@@ -68,14 +68,19 @@ def init_extensions(app):
     # 初始化缓存
     cache.init_app(app)
     
-    # 初始化 Redis 客户端（使用连接池）
-    redis_url = app.config.get('REDIS_URL', 'redis://localhost:6379/0')
-    try:
-        redis_client = redis.from_url(redis_url, decode_responses=True)
-        redis_client.ping()
-        app.logger.info('[Extensions] Redis client initialized successfully')
-    except Exception as e:
-        app.logger.error(f'[Extensions] Redis connection failed: {e}. Redis features will be unavailable.')
+    # 初始化 Redis 客户端（仅在使用 Redis 缓存或实时协作时才连接）
+    cache_type = app.config.get('CACHE_TYPE', 'SimpleCache')
+    if cache_type == 'RedisCache':
+        redis_url = app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+        try:
+            redis_client = redis.from_url(redis_url, decode_responses=True)
+            redis_client.ping()
+            app.logger.info('[Extensions] Redis client initialized successfully')
+        except Exception as e:
+            app.logger.error(f'[Extensions] Redis connection failed: {e}. Redis features will be unavailable.')
+            redis_client = None
+    else:
+        app.logger.info(f'[Extensions] Redis disabled (CACHE_TYPE={cache_type}), skipping Redis client')
         redis_client = None
     
     # 初始化 CSRF 保护

@@ -126,9 +126,11 @@ class Config:
     REDIS_URL = os.environ.get('REDIS_URL') or 'redis://localhost:6379/0'
     
     # 缓存配置
-    CACHE_TYPE = 'RedisCache'
+    # 本地启动默认使用 SimpleCache（内存），无需 Redis；
+    # 如需 Redis 缓存，设置 CACHE_TYPE=RedisCache 即可。
+    CACHE_TYPE = os.environ.get('CACHE_TYPE', 'SimpleCache')
     CACHE_REDIS_URL = REDIS_URL
-    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 300))
     
     # MinIO 对象存储配置（打包模式下禁用，使用本地文件系统）
     MINIO_ENABLED = os.environ.get('MINIO_ENABLED', 'false').lower() == 'true'
@@ -153,6 +155,9 @@ class Config:
     
     # 日志配置
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+
+    # 登录/注册验证码开关（本地启动可关闭以减少摩擦，生产环境默认开启）
+    LOGIN_CAPTCHA_ENABLED = os.environ.get('LOGIN_CAPTCHA_ENABLED', 'true').lower() == 'true'
 
     # 文件上传配置
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'uploads'

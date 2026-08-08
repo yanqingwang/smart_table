@@ -1,8 +1,10 @@
 """
 SmartTable Flask 应用工厂模块
 """
+import os
+import sys
 import uuid
-from flask import Flask, jsonify, render_template_string, g
+from flask import Flask, jsonify, render_template_string, g, redirect
 from flasgger import Swagger
 from app.extensions import init_extensions, db
 from app.config import config
@@ -132,6 +134,9 @@ def create_app(config_name='default', enable_realtime=False):
     # 注册健康检查端点
     register_health_check(app)
 
+    # 注册开发模式根路径重定向（避免 GET / 返回裸 404）
+    register_root_route(app)
+
     # 注册应用生命周期钩子
     register_lifecycle_hooks(app)
 
@@ -163,6 +168,28 @@ def register_health_check(app):
             'timestamp': datetime.utcnow().isoformat(),
             'service': 'smarttable'
         })
+
+
+def register_root_route(app):
+    """
+    开发模式下将根路径 `/` 重定向到前端开发服务器。
+
+    后端本身是 API 服务，仅提供 `/api/*` 接口，UI 由 Vite 开发服务器
+    （默认 http://localhost:3000）提供。直接访问 http://localhost:5000/
+    会返回裸 404，容易让人误以为启动失败。这里在开发/非打包模式下把 `/`
+    重定向到前端地址，生产/打包模式则由静态文件托管处理根路径，不注册此路由。
+
+    前端地址可通过环境变量 `FRONTEND_URL` 覆盖。
+    """
+    # 打包模式（PyInstaller）下根路径由 configure_static_serving 托管，跳过
+    if getattr(sys, 'frozen', False):
+        return
+
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+    @app.route('/')
+    def root_redirect():
+        return redirect(frontend_url)
 
 
 def register_lifecycle_hooks(app):
